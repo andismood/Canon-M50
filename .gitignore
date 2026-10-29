@@ -1,0 +1,56 @@
+# ==========================================
+# Python Bytecode & Cache
+# ==========================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# ==========================================
+# Virtual Environments
+# ==========================================
+venv/
+.venv/
+flet-env/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ==========================================
+# Data Mahasiswa & Foto (Sensitif & Ukuran Besar)
+# ==========================================
+foto_mahasiswa/
+temp_captures/
+runtime_preview/
+
+# ==========================================
+# Folder Backup & File Uji Coba Lokal
+# ==========================================
+old/
+test/
+*.bak
+
+# ==========================================
+# Konfigurasi Editor & IDE
+# ==========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
+.env
+*.env
+*.env.local
+
+# ==========================================
+# Sistem Operasi
+# ==========================================
+.DS_Store
+Thumbs.db
+

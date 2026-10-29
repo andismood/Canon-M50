@@ -1,0 +1,4 @@
+flet==1.0.5
+opencv-python==4.10.0.84
+gphoto2==2.6.4
+
