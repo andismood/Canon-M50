@@ -32,8 +32,8 @@ class AppUI:
         self.on_crop_cancel = on_crop_cancel
 
         # Form fields
-        self.nim_field = ft.TextField(label="NIM *", dense=True, border_radius=8)
-        self.nama_field = ft.TextField(label="Nama Lengkap Mahasiswa", dense=True, border_radius=8)
+        self.nim_field = ft.TextField(label="NIM *", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
+        self.nama_field = ft.TextField(label="Nama Lengkap Mahasiswa", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
         # self.alamat_field = ft.TextField(
         #     label="Alamat",
         #     multiline=True,
@@ -43,12 +43,12 @@ class AppUI:
         #     border_radius=8,
         # )
         # self.kode_prodi_field = ft.TextField(label="Kode Prodi", dense=True, border_radius=8)
-        self.nama_prodi_field = ft.TextField(label="Nama Prodi", dense=True, border_radius=8)
+        self.nama_prodi_field = ft.TextField(label="Nama Prodi", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
         # self.kode_fakultas_field = ft.TextField(label="Kode Fakultas", dense=True, border_radius=8)
-        self.nama_fakultas_field = ft.TextField(label="Nama Fakultas", dense=True, border_radius=8)
+        self.nama_fakultas_field = ft.TextField(label="Nama Fakultas", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
         # self.kode_institusi_field = ft.TextField(label="Kode Institusi", dense=True, border_radius=8)
-        self.nama_institusi_field = ft.TextField(label="Nama Institusi", dense=True, border_radius=8)
-        self.semester_field = ft.TextField(label="Semester", dense=True, border_radius=8)
+        self.nama_institusi_field = ft.TextField(label="Nama Institusi", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
+        self.semester_field = ft.TextField(label="Semester", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
         
         # Status text
         self.camera_status = ft.Text("Kamera belum aktif", color="#64748B", size=13)
