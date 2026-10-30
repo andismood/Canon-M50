@@ -19,11 +19,25 @@ PREVIEW_WIDTH = 1280
 PREVIEW_HEIGHT = 720
 PREVIEW_JPEG_QUALITY = 75
 
-# Ukuran crop tetap (piksel foto asli)
+# Ukuran output crop (piksel) dan ukuran default kotak crop pada foto asli
 CROP_SIZE = 640
 CROP_JPEG_QUALITY = 100
+MIN_CROP_SIZE = 200
+
+# Deteksi wajah untuk menentukan kotak crop otomatis.
+# Margin atas, bawah, kiri, dan kanan di sekeliling kotak wajah yang terdeteksi:
+# - Nilai <= 5.0 dihitung sebagai rasio terhadap ukuran wajah (mis. 0.6 = 60% dari lebar/tinggi wajah).
+# - Nilai > 5.0 dihitung sebagai piksel foto asli secara langsung (mis. 350 = 350 px).
+FACE_MARGIN_TOP = 0.3
+FACE_MARGIN_BOTTOM = 0.4
+FACE_MARGIN_LEFT = 0.4
+FACE_MARGIN_RIGHT = 0.4
+FACE_DETECT_MAX_SIDE = 1000  # sisi terpanjang gambar (px) saat deteksi, demi kecepatan
+
+# Gambar yang ditampilkan di tab hasil shutter diperkecil agar ringan dikirim ke UI.
+# Proses crop tetap memakai foto asli resolusi penuh.
+SHUTTER_DISPLAY_MAX_SIDE = 2400
 
 # Lokasi penyimpanan
 OUTPUT_DIR = Path("foto_mahasiswa")
-TEMP_DIR = Path("temp_captures")
 

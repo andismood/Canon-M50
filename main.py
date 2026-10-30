@@ -1,19 +1,17 @@
 """Entry point aplikasi Pengambilan Foto Mahasiswa Flet."""
 
 import asyncio
+from pathlib import Path
 from typing import List, Optional
 
 import flet as ft
 
 from app.camera_preview import CameraPreviewManager
-from app.config import CAMERA_INDEX, POSES
-from app.crop_dialog import ManualCropDialog
-from app.shutter import capture_and_download, detect_camera
+from app.config import CAMERA_INDEX, CROP_SIZE, POSES
+from app.shutter import capture_to_memory, detect_camera
 from app.storage import (
-    cleanup_file,
     get_crop_file_path,
     get_student_dir,
-    get_temp_file,
     sanitize_nim,
     save_student_data,
 )
@@ -28,7 +26,7 @@ def main(page: ft.Page):
     page.scroll = ft.ScrollMode.AUTO
 
     try:
-        page.window.width = 1450
+        page.window.width = 1280
         page.window.height = 940
     except Exception:
         pass
@@ -36,6 +34,8 @@ def main(page: ft.Page):
     preview_manager = CameraPreviewManager(camera_index=CAMERA_INDEX)
     captured_paths: List[Optional[str]] = [None] * len(POSES)
     preview_task_handle: Optional[asyncio.Task] = None
+    pending_pose: Optional[int] = None  # pose yang fotonya sedang menunggu crop di tab hasil shutter
+    capturing = False
 
     async def preview_loop():
         last_seq = 0
@@ -69,6 +69,11 @@ def main(page: ft.Page):
         page.run_task(preview_loop)
 
     async def on_capture_pose(index: int):
+        nonlocal pending_pose, capturing
+        if capturing:
+            ui.notify("Pengambilan foto sebelumnya masih berjalan.", "#B45309")
+            return
+
         if not preview_manager.is_running:
             ui.notify("Aktifkan kamera terlebih dahulu dengan Camera On.", "#B45309")
             return
@@ -79,60 +84,87 @@ def main(page: ft.Page):
             ui.notify("Isi NIM terlebih dahulu sebelum mengambil foto.", "#B45309")
             return
 
-        student_dir = get_student_dir(safe_nim, create=True)
+        # Folder NIM baru dibuat saat foto di-crop & disimpan
+        student_dir = get_student_dir(safe_nim, create=False)
         if not student_dir:
             ui.notify("NIM tidak valid.", "#B45309")
             return
 
         pose_title = POSES[index][1]
-        temp_dest = get_temp_file(safe_nim, index)
         crop_dest = get_crop_file_path(student_dir, index)
 
-        ui.notify(f"Mengambil foto pose {index + 1}: {pose_title}...", "#64748B")
-
-        # Ambil foto asli lewat gphoto2 (non-blocking)
-        success, msg = await asyncio.to_thread(capture_and_download, temp_dest, 90)
-
-        # Pulihkan stream capture card OpenCV setelah shutter kamera
-        preview_manager.request_reopen()
-
-        if not success or not temp_dest.exists():
-            cleanup_file(temp_dest)
-            ui.notify(f"Gagal mengambil foto: {msg}", "#B91C1C")
-            return
-
-        ui.notify(f"Foto asli pose {index + 1} berhasil diambil. Silakan lakukan crop.", "#16803C")
-
-        # Buka dialog crop manual
-        def on_crop_success(saved_crop_path):
-            captured_paths[index] = str(saved_crop_path)
-            cleanup_file(temp_dest)
-            ui.set_pose_thumbnail(index, saved_crop_path)
-            ui.notify(
-                f"Foto pose {index + 1} ({pose_title}) tersimpan (640x640 px).",
-                "#16803C",
-            )
-
-        def on_crop_cancel():
-            cleanup_file(temp_dest)
-            ui.notify(f"Pengambilan foto pose {index + 1} dibatalkan.", "#64748B")
-
+        capturing = True
         try:
-            crop_dialog = ManualCropDialog(
-                page=page,
-                source_image_path=temp_dest,
-                destination_path=crop_dest,
-                pose_title=f"{index + 1}. {pose_title}",
-                on_success=on_crop_success,
-                on_cancel=on_crop_cancel,
-            )
-            crop_dialog.show()
-        except ValueError as val_err:
-            cleanup_file(temp_dest)
-            ui.notify(f"Kesalahan dimensi foto: {val_err}", "#B91C1C")
-        except Exception as exc:
-            cleanup_file(temp_dest)
-            ui.notify(f"Gagal membuka dialog crop: {exc}", "#B91C1C")
+            ui.notify(f"Mengambil foto pose {index + 1}: {pose_title}...", "#64748B")
+
+            # Ambil foto asli lewat gphoto2 langsung ke memori (non-blocking, tanpa file sementara)
+            jpeg_bytes, msg = await asyncio.to_thread(capture_to_memory, 90)
+
+            # Pulihkan stream capture card OpenCV setelah shutter kamera
+            preview_manager.request_reopen()
+
+            if jpeg_bytes is None:
+                ui.notify(f"Gagal mengambil foto: {msg}", "#B91C1C")
+                return
+
+            ui.notify(f"Foto pose {index + 1} diterima. Mendeteksi wajah...", "#64748B")
+            pending_pose = index
+            try:
+                auto_saved = await ui.show_shutter_photo(
+                    jpeg_bytes, f"{index + 1}. {pose_title}", crop_dest
+                )
+            except ValueError as val_err:
+                pending_pose = None
+                ui.notify(f"Kesalahan foto: {val_err}", "#B91C1C")
+                return
+            except Exception as exc:
+                pending_pose = None
+                ui.notify(f"Gagal menampilkan hasil shutter: {exc}", "#B91C1C")
+                return
+
+            if auto_saved:
+                ui.notify(
+                    f"Wajah terdeteksi! Foto pose {index + 1} otomatis di-crop ({CROP_SIZE}x{CROP_SIZE} px), "
+                    "disimpan, dan ditampilkan di thumbnail pose sebagai referensi.",
+                    "#16803C",
+                )
+            else:
+                ui.notify(
+                    f"Wajah tidak terdeteksi pada pose {index + 1}. "
+                    "Atur kotak di tab Hasil Shutter & Crop lalu klik Crop & Simpan Foto.",
+                    "#B45309",
+                )
+        finally:
+            capturing = False
+
+    def on_crop_saved(saved_path: Path):
+        nonlocal pending_pose
+        index = pending_pose
+        if not ui.crop_panel.has_photo:
+            pending_pose = None
+        if index is None:
+            return
+        captured_paths[index] = str(saved_path)
+        ui.set_pose_thumbnail(index, saved_path)
+        ui.notify(
+            f"Foto pose {index + 1} ({POSES[index][1]}) tersimpan ({CROP_SIZE}x{CROP_SIZE} px).",
+            "#16803C",
+        )
+
+    def on_crop_cancel():
+        nonlocal pending_pose
+        index = pending_pose
+        pending_pose = None
+        if index is not None:
+            existing = captured_paths[index]
+            if existing:
+                try:
+                    Path(existing).unlink(missing_ok=True)
+                except Exception:
+                    pass
+            captured_paths[index] = None
+            ui.reset_pose_thumbnail(index)
+            ui.notify(f"Pengambilan foto pose {index + 1} dibatalkan.", "#64748B")
 
     def on_save_data():
         nim_val = ui.get_nim()
@@ -161,6 +193,8 @@ def main(page: ft.Page):
         on_camera_toggle=lambda: page.run_task(on_camera_toggle),
         on_capture_pose=lambda idx: page.run_task(on_capture_pose, idx),
         on_save_data=on_save_data,
+        on_crop_saved=on_crop_saved,
+        on_crop_cancel=on_crop_cancel,
     )
 
     page.add(ui.build_layout())

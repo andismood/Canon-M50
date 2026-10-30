@@ -6,10 +6,14 @@ from typing import Callable, Dict, List, Optional
 import flet as ft
 
 from app.config import POSES
+from app.crop_panel import ShutterCropPanel
 
 
 class AppUI:
     """Mengelola pembuatan dan pembaruan komponen tampilan UI."""
+
+    TAB_LIVE = 0
+    TAB_RESULT = 1
 
     def __init__(
         self,
@@ -17,30 +21,35 @@ class AppUI:
         on_camera_toggle: Callable[[], None],
         on_capture_pose: Callable[[int], None],
         on_save_data: Callable[[], None],
+        on_crop_saved: Callable[[Path], None],
+        on_crop_cancel: Callable[[], None],
     ):
         self.page = page
         self.on_camera_toggle = on_camera_toggle
         self.on_capture_pose = on_capture_pose
         self.on_save_data = on_save_data
+        self.on_crop_saved = on_crop_saved
+        self.on_crop_cancel = on_crop_cancel
 
         # Form fields
         self.nim_field = ft.TextField(label="NIM *", dense=True, border_radius=8)
-        self.nama_field = ft.TextField(label="Nama Lengkap", dense=True, border_radius=8)
-        self.alamat_field = ft.TextField(
-            label="Alamat",
-            multiline=True,
-            min_lines=2,
-            max_lines=3,
-            dense=True,
-            border_radius=8,
-        )
-        self.kode_prodi_field = ft.TextField(label="Kode Prodi", dense=True, border_radius=8)
+        self.nama_field = ft.TextField(label="Nama Lengkap Mahasiswa", dense=True, border_radius=8)
+        # self.alamat_field = ft.TextField(
+        #     label="Alamat",
+        #     multiline=True,
+        #     min_lines=2,
+        #     max_lines=3,
+        #     dense=True,
+        #     border_radius=8,
+        # )
+        # self.kode_prodi_field = ft.TextField(label="Kode Prodi", dense=True, border_radius=8)
         self.nama_prodi_field = ft.TextField(label="Nama Prodi", dense=True, border_radius=8)
-        self.kode_fakultas_field = ft.TextField(label="Kode Fakultas", dense=True, border_radius=8)
+        # self.kode_fakultas_field = ft.TextField(label="Kode Fakultas", dense=True, border_radius=8)
         self.nama_fakultas_field = ft.TextField(label="Nama Fakultas", dense=True, border_radius=8)
-        self.kode_institusi_field = ft.TextField(label="Kode Institusi", dense=True, border_radius=8)
+        # self.kode_institusi_field = ft.TextField(label="Kode Institusi", dense=True, border_radius=8)
         self.nama_institusi_field = ft.TextField(label="Nama Institusi", dense=True, border_radius=8)
-
+        self.semester_field = ft.TextField(label="Semester", dense=True, border_radius=8)
+        
         # Status text
         self.camera_status = ft.Text("Kamera belum aktif", color="#64748B", size=13)
         self.pose_status = ft.Text("Pilih posisi wajah, lalu ambil foto.", color="#334155", size=13)
@@ -74,6 +83,37 @@ class AppUI:
             content=self.preview_placeholder,
         )
 
+        # Panel crop hasil shutter (isi tab kedua)
+        self.crop_panel = ShutterCropPanel(
+            page,
+            on_saved=self._handle_crop_saved,
+            on_cancel=self._handle_crop_cancel,
+            on_auto_saved=self._handle_crop_auto_saved,
+        )
+
+        # Tab panel: Live Preview | Hasil Shutter & Crop.
+        # Isi tab diganti lewat visible (bukan TabBarView) agar geser mouse di kotak crop
+        # tidak berpindah tab, dan live preview tetap berjalan di latar belakang.
+        self.tabs = ft.Tabs(
+            length=2,
+            selected_index=self.TAB_LIVE,
+            on_change=self._on_tab_changed,
+            content=ft.Column(
+                tight=True,
+                spacing=8,
+                controls=[
+                    ft.TabBar(
+                        tabs=[
+                            ft.Tab(label="Live Preview", icon=ft.Icons.VIDEOCAM),
+                             ft.Tab(label="Hasil Shutter & Crop", icon=ft.Icons.CROP),
+                        ],
+                    ),
+                    self.preview_box,
+                    self.crop_panel.control,
+                ],
+            ),
+        )
+
         # Camera Button
         self.camera_button = ft.FilledButton(
             "Camera On",
@@ -87,10 +127,70 @@ class AppUI:
             ),
         )
 
+        self.mahasiswa_simpan_button = ft.FilledButton(
+            "Simpan",
+            icon=ft.Icons.SAVE,
+            on_click=lambda _: self.on_save_data(),
+            height=44,
+            style=ft.ButtonStyle(
+            bgcolor="#16803C",
+            color="#FFFFFF",
+            shape=ft.RoundedRectangleBorder(radius=9),
+            ),
+        )
+
+        self.mahasiswa_cancle_button = ft.FilledButton(
+                    "Batal",
+                    icon=ft.Icons.CANCEL,
+                    # on_click=lambda _: self.on_save_data(),
+                    height=44,
+                    style=ft.ButtonStyle(
+                    bgcolor="#5D6661",
+                    color="#FFFFFF",
+                    shape=ft.RoundedRectangleBorder(radius=9),
+                    ),
+                )
+
         # Pose Cards
         self.pose_image_boxes: List[ft.Container] = []
         self.pose_labels: List[ft.Text] = []
         self.pose_buttons: List[ft.OutlinedButton] = []
+
+    def select_tab(self, index: int) -> None:
+        """Berpindah tab tanpa menghentikan live preview."""
+        self.tabs.selected_index = index
+        self._apply_tab_visibility(index)
+        self.page.update(self.tabs)
+
+    def _apply_tab_visibility(self, index: int) -> None:
+        self.preview_box.visible = index == self.TAB_LIVE
+        self.crop_panel.control.visible = index == self.TAB_RESULT
+
+    def _on_tab_changed(self, e) -> None:
+        try:
+            index = int(e.data)
+        except (TypeError, ValueError):
+            index = self.tabs.selected_index
+        self.tabs.selected_index = index
+        self._apply_tab_visibility(index)
+        self.page.update(self.preview_box, self.crop_panel.control)
+
+    async def show_shutter_photo(self, jpeg_bytes: bytes, pose_label: str, destination: Path) -> bool:
+        """Menampilkan hasil shutter (dari memori) di tab Hasil Shutter & Crop."""
+        auto_saved = await self.crop_panel.load_photo(jpeg_bytes, pose_label, destination)
+        self.select_tab(self.TAB_RESULT)
+        return auto_saved
+
+    def _handle_crop_auto_saved(self, destination: Path) -> None:
+        self.on_crop_saved(destination)
+
+    def _handle_crop_saved(self, destination: Path) -> None:
+        self.select_tab(self.TAB_LIVE)
+        self.on_crop_saved(destination)
+
+    def _handle_crop_cancel(self) -> None:
+        self.select_tab(self.TAB_LIVE)
+        self.on_crop_cancel()
 
     def get_nim(self) -> str:
         return (self.nim_field.value or "").strip()
@@ -99,7 +199,7 @@ class AppUI:
         return {
             "nim": self.get_nim(),
             "nama": (self.nama_field.value or "").strip(),
-            "alamat": (self.alamat_field.value or "").strip(),
+            "semester": (self.semester_field.value or "").strip(),
             "kode_prodi": (self.kode_prodi_field.value or "").strip(),
             "nama_prodi": (self.nama_prodi_field.value or "").strip(),
             "kode_fakultas": (self.kode_fakultas_field.value or "").strip(),
@@ -154,6 +254,22 @@ class AppUI:
                 self.page.update()
             except Exception as exc:
                 print(f"[UI] Error loading thumbnail: {exc}")
+
+    def reset_pose_thumbnail(self, index: int) -> None:
+        if 0 <= index < len(self.pose_image_boxes):
+            self.pose_image_boxes[index].content = ft.Column(
+                controls=[
+                    ft.Icon(ft.Icons.PERSON, size=34, color="#6482A8"),
+                    ft.Text("Belum diambil", size=10, color="#64748B"),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=3,
+            )
+            self.pose_labels[index].value = "Belum diambil"
+            self.pose_labels[index].color = "#64748B"
+            self.pose_status.value = f"Foto pose {index + 1} ({POSES[index][1]}) dibatalkan."
+            self.page.update()
 
     def build_pose_card(self, index: int, number: str, title: str, instruction: str) -> ft.Container:
         image_box = ft.Container(
@@ -231,7 +347,7 @@ class AppUI:
                                 color="#FFFFFF",
                             ),
                             ft.Text(
-                                "gphoto2 • 7 Pose Wajah • Live Preview OpenCV • Crop Manual 640x640",
+                                "gphoto2 • 7 Pose Wajah • Live Preview OpenCV • Crop Wajah 640x640",
                                 size=13,
                                 color="#DCEBFA",
                             ),
@@ -253,19 +369,24 @@ class AppUI:
                     ft.Row(
                         controls=[
                             ft.Icon(ft.Icons.CAMERA_ALT, color="#1767B1", size=22),
-                            ft.Text("Live Preview (OpenCV)", size=18, weight=ft.FontWeight.BOLD, color="#17365D"),
+                            ft.Text("Kamera & Hasil Shutter", size=18, weight=ft.FontWeight.BOLD, color="#17365D"),
                             ft.Container(expand=True),
                             self.camera_status,
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    self.preview_box,
+                    self.tabs,
                     ft.Text(
-                        "Preview berasal dari HDMI capture card via OpenCV; foto asli diambil via gphoto2 USB.",
+                        "Preview berasal dari HDMI capture card via OpenCV; foto asli diambil via gphoto2 USB "
+                        "dan langsung ditampilkan di tab Hasil Shutter & Crop.",
                         size=11,
                         color="#52657D",
                     ),
-                    self.camera_button,
+                    ft.Row(
+                        controls=[self.camera_button],
+                        spacing=10,
+                        wrap=True,
+                    ),
                 ],
                 spacing=10,
             ),
@@ -316,24 +437,17 @@ class AppUI:
                     ),
                     self.nim_field,
                     self.nama_field,
-                    self.alamat_field,
-                    self.kode_prodi_field,
-                    self.nama_prodi_field,
-                    self.kode_fakultas_field,
-                    self.nama_fakultas_field,
-                    self.kode_institusi_field,
+                    # self.alamat_field,
+                    # self.kode_prodi_field,
                     self.nama_institusi_field,
-                    ft.FilledButton(
-                        "Simpan Data Mahasiswa",
-                        icon=ft.Icons.SAVE,
-                        on_click=lambda _: self.on_save_data(),
-                        height=44,
-                        style=ft.ButtonStyle(
-                            bgcolor="#16803C",
-                            color="#FFFFFF",
-                            shape=ft.RoundedRectangleBorder(radius=9),
-                        ),
+                    self.nama_fakultas_field,
+                    self.nama_prodi_field,
+                    self.semester_field,
+                    # self.kode_institusi_field,
+                    ft.Row(
+                        controls=[self.mahasiswa_simpan_button,self.mahasiswa_cancle_button]
                     ),
+                    
                     ft.Text(
                         "Data mahasiswa disimpan ke data_mahasiswa.json beserta 7 foto hasil crop 640x640.",
                         size=11,
@@ -351,19 +465,24 @@ class AppUI:
                     controls=[
                         ft.Container(
                             expand=6,
-                            content=ft.Column(
-                                controls=[preview_panel, poses_panel],
+                            content=ft.Row(
+                                controls=[preview_panel, form_panel],
                                 spacing=14,
+                                vertical_alignment=ft.CrossAxisAlignment.START,
                             ),
+                            
                         ),
-                        ft.Container(
-                            expand=4,
-                            content=form_panel,
-                        ),
+                        
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.START,
                     spacing=14,
                 ),
+                ft.Row(
+                    ft.Container(
+                        expand=4,
+                        content=poses_panel,
+                        ),
+                )
             ],
             spacing=14,
             expand=True,

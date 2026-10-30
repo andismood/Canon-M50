@@ -3,10 +3,12 @@
 import shutil
 import subprocess
 import threading
-from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 _camera_command_lock = threading.Lock()
+
+_JPEG_SOI = b"\xff\xd8\xff"
+_JPEG_EOI = b"\xff\xd9"
 
 
 def is_gphoto2_installed() -> bool:
@@ -14,13 +16,16 @@ def is_gphoto2_installed() -> bool:
     return shutil.which("gphoto2") is not None
 
 
-def run_gphoto(args: List[str], timeout: int = 30) -> subprocess.CompletedProcess:
-    """Menjalankan perintah gphoto2 dengan thread lock dan timeout."""
+def run_gphoto(args: List[str], timeout: int = 30, text: bool = True) -> subprocess.CompletedProcess:
+    """Menjalankan perintah gphoto2 dengan thread lock dan timeout.
+
+    Gunakan text=False bila stdout berisi data biner (mis. --stdout).
+    """
     with _camera_command_lock:
         return subprocess.run(
             ["gphoto2"] + args,
             capture_output=True,
-            text=True,
+            text=text,
             timeout=timeout,
             check=False,
         )
@@ -43,25 +48,29 @@ def detect_camera(timeout: int = 15) -> Tuple[bool, str]:
         return False, f"Gagal menjalankan gphoto2: {exc}"
 
 
-def capture_and_download(destination: Path, timeout: int = 90) -> Tuple[bool, str]:
-    """Mengambil foto asli dari kamera dan mengunduhnya ke file tujuan sementara."""
-    destination.parent.mkdir(parents=True, exist_ok=True)
+def extract_jpeg(data: bytes) -> Optional[bytes]:
+    """Mengambil bagian JPEG dari output gphoto2, membuang teks status di sekitarnya."""
+    start = data.find(_JPEG_SOI)
+    end = data.rfind(_JPEG_EOI)
+    if start == -1 or end <= start:
+        return None
+    return data[start : end + len(_JPEG_EOI)]
+
+
+def capture_to_memory(timeout: int = 90) -> Tuple[Optional[bytes], str]:
+    """Mengambil foto asli dari kamera dan mengembalikannya sebagai bytes JPEG (tanpa file sementara)."""
     try:
         res = run_gphoto(
-            [
-                "--capture-image-and-download",
-                "--filename",
-                str(destination),
-                "--force-overwrite",
-            ],
+            ["--capture-image-and-download", "--stdout"],
             timeout=timeout,
+            text=False,
         )
-        if res.returncode != 0 or not destination.exists() or destination.stat().st_size == 0:
-            detail = (res.stderr or res.stdout or "File foto tidak terbentuk").strip()
-            return False, detail
-        return True, "Foto berhasil diambil."
+        jpeg = extract_jpeg(res.stdout or b"")
+        if res.returncode != 0 or jpeg is None:
+            detail = (res.stderr or b"").decode("utf-8", errors="replace").strip()
+            return None, detail or "Data foto JPEG tidak diterima dari kamera."
+        return jpeg, "Foto berhasil diambil."
     except subprocess.TimeoutExpired:
-        return False, "Pengambilan foto melewati batas waktu (timeout). Periksa kamera."
+        return None, "Pengambilan foto melewati batas waktu (timeout). Periksa kamera."
     except Exception as exc:
-        return False, f"Kesalahan saat mengambil foto: {exc}"
-
+        return None, f"Kesalahan saat mengambil foto: {exc}"

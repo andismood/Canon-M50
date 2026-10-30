@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from app.config import OUTPUT_DIR, POSES, TEMP_DIR
+from app.config import OUTPUT_DIR, POSES
 
 
 def sanitize_nim(nim: Optional[str]) -> Optional[str]:
@@ -27,26 +27,10 @@ def get_student_dir(nim: Optional[str], create: bool = True) -> Optional[Path]:
     return folder
 
 
-def get_temp_file(safe_nim: str, pose_index: int) -> Path:
-    """Mengembalikan path file sementara untuk foto asli sebelum di-crop."""
-    TEMP_DIR.mkdir(parents=True, exist_ok=True)
-    title = POSES[pose_index][1].lower().replace(" ", "_")
-    return TEMP_DIR / f"temp_{safe_nim}_{pose_index + 1:02d}_{title}.jpg"
-
-
 def get_crop_file_path(student_dir: Path, pose_index: int) -> Path:
     """Mengembalikan path tujuan file crop 640x640 di dalam folder mahasiswa."""
     title = POSES[pose_index][1].lower().replace(" ", "_")
     return student_dir / f"{pose_index + 1:02d}_{title}.jpg"
-
-
-def cleanup_file(path: Optional[Path]) -> None:
-    """Menghapus file sementara jika ada."""
-    if path and path.exists():
-        try:
-            path.unlink()
-        except OSError:
-            pass
 
 
 def save_student_data(
