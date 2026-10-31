@@ -7,6 +7,7 @@ from typing import List, Optional
 import flet as ft
 
 from app.camera_preview import CameraPreviewManager
+from app import config
 from app.config import CAMERA_INDEX, CROP_SIZE, POSES
 from app.shutter import capture_to_memory, detect_camera
 from app.storage import (
@@ -137,6 +138,10 @@ def main(page: ft.Page):
         finally:
             capturing = False
 
+    def ensure_captured_paths_capacity(min_len: int):
+        while len(captured_paths) < min_len:
+            captured_paths.append(None)
+
     def on_crop_saved(saved_path: Path):
         nonlocal pending_pose
         index = pending_pose
@@ -144,10 +149,12 @@ def main(page: ft.Page):
             pending_pose = None
         if index is None:
             return
+        ensure_captured_paths_capacity(index + 1)
         captured_paths[index] = str(saved_path)
         ui.set_pose_thumbnail(index, saved_path)
+        pose_label = config.POSES[index][1] if index < len(config.POSES) else f"Pose {index + 1}"
         ui.notify(
-            f"Foto pose {index + 1} ({POSES[index][1]}) tersimpan ({CROP_SIZE}x{CROP_SIZE} px).",
+            f"Foto pose {index + 1} ({pose_label}) tersimpan ({config.CROP_SIZE}x{config.CROP_SIZE} px).",
             "#16803C",
         )
 
@@ -175,7 +182,10 @@ def main(page: ft.Page):
 
         student_dir = get_student_dir(safe_nim, create=True)
         form_values = ui.get_form_values()
-        photo_dict = {POSES[i][1]: captured_paths[i] for i in range(len(POSES))}
+        photo_dict = {
+            config.POSES[i][1]: (captured_paths[i] if i < len(captured_paths) else None)
+            for i in range(len(config.POSES))
+        }
 
         try:
             target_json = save_student_data(
@@ -198,7 +208,8 @@ def main(page: ft.Page):
     )
 
     page.add(ui.build_layout())
-
+    ui.rebuild_pose_cards()
+    ui._layout_ready = True
 
 if __name__ == "__main__":
     ft.run(main)

@@ -6,6 +6,7 @@ from typing import Callable, Dict, List, Optional
 import flet as ft
 
 from app.config import POSES
+from app.config_ui import ConfigFormDialog
 from app.crop_panel import ShutterCropPanel
 
 
@@ -30,6 +31,9 @@ class AppUI:
         self.on_save_data = on_save_data
         self.on_crop_saved = on_crop_saved
         self.on_crop_cancel = on_crop_cancel
+
+        # Config Form Dialog
+        self.config_dialog = ConfigFormDialog(page=page, on_saved_callback=self._on_config_updated)
 
         # Form fields
         self.nim_field = ft.TextField(label="NIM *", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
@@ -152,9 +156,51 @@ class AppUI:
                 )
 
         # Pose Cards
+        self.pose_cards_row = ft.Row(
+            wrap=True,
+            spacing=9,
+            run_spacing=9,
+        )
+        self._layout_ready = False
         self.pose_image_boxes: List[ft.Container] = []
         self.pose_labels: List[ft.Text] = []
         self.pose_buttons: List[ft.OutlinedButton] = []
+
+    def _on_config_updated(self) -> None:
+        """Callback ketika konfigurasi atau poses diperbarui dari form settings."""
+        self.rebuild_pose_cards()
+        self.notify("Pengaturan aplikasi telah diperbarui.", "#16803C")
+
+    def rebuild_pose_cards(self) -> None:
+        """Menyusun ulang kartu pose di UI berdasarkan nilai POSES terbaru."""
+
+        self.pose_image_boxes.clear()
+        self.pose_labels.clear()
+        self.pose_buttons.clear()
+        self.pose_cards_row.controls.clear()
+
+        for i, (num, title, desc) in enumerate(POSES):
+            self.pose_cards_row.controls.append(
+                self.build_pose_card(i, num, title, desc)
+            )
+
+        # Update hanya jika UI sudah selesai dibuat
+        if getattr(self, "_layout_ready", False):
+            self.pose_cards_row.update()
+
+    # def rebuild_pose_cards(self) -> None:
+    #     """Menyusun ulang kartu pose di UI berdasarkan nilai POSES terbaru."""
+    #     self.pose_image_boxes.clear()
+    #     self.pose_labels.clear()
+    #     self.pose_buttons.clear()
+    #     self.pose_cards_row.controls.clear()
+
+    #     for i, (num, title, desc) in enumerate(POSES):
+    #         self.pose_cards_row.controls.append(self.build_pose_card(i, num, title, desc))
+        
+    #     if self.pose_cards_row.page is not None:
+    #         self.pose_cards_row.update()
+            
 
     def select_tab(self, index: int) -> None:
         """Berpindah tab tanpa menghentikan live preview."""
@@ -331,6 +377,8 @@ class AppUI:
         return card
 
     def build_layout(self) -> ft.Control:
+        self.rebuild_pose_cards()
+
         header = ft.Container(
             padding=16,
             bgcolor="#24558C",
@@ -347,15 +395,27 @@ class AppUI:
                                 color="#FFFFFF",
                             ),
                             ft.Text(
-                                "gphoto2 • 7 Pose Wajah • Live Preview OpenCV • Crop Wajah 640x640",
+                                "gphoto2 • SQLite Config • Live Preview OpenCV • Crop Wajah",
                                 size=13,
                                 color="#DCEBFA",
                             ),
                         ],
                         spacing=2,
                     ),
+                    ft.Container(expand=True),
+                    ft.FilledButton(
+                        "Pengaturan",
+                        icon=ft.Icons.SETTINGS,
+                        on_click=lambda _: self.config_dialog.open_dialog(),
+                        style=ft.ButtonStyle(
+                            bgcolor="#1E3A8A",
+                            color="#FFFFFF",
+                            shape=ft.RoundedRectangleBorder(radius=5),
+                        ),
+                    ),
                 ],
                 spacing=12,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
         )
 
@@ -402,20 +462,12 @@ class AppUI:
                     ft.Row(
                         controls=[
                             ft.Icon(ft.Icons.FACE, color="#1767B1", size=22),
-                            ft.Text("Pengambilan 7 Foto Wajah", size=18, weight=ft.FontWeight.BOLD, color="#17365D"),
+                            ft.Text("Pengambilan Foto Wajah", size=18, weight=ft.FontWeight.BOLD, color="#17365D"),
                         ],
                         spacing=8,
                     ),
                     self.pose_status,
-                    ft.Row(
-                        controls=[
-                            self.build_pose_card(i, num, title, desc)
-                            for i, (num, title, desc) in enumerate(POSES)
-                        ],
-                        wrap=True,
-                        spacing=9,
-                        run_spacing=9,
-                    ),
+                    self.pose_cards_row,
                 ],
                 spacing=10,
             ),
@@ -458,7 +510,7 @@ class AppUI:
             ),
         )
 
-        return ft.Column(
+        layout = ft.Column(
             controls=[
                 header,
                 ft.Row(
@@ -470,21 +522,23 @@ class AppUI:
                                 spacing=14,
                                 vertical_alignment=ft.CrossAxisAlignment.START,
                             ),
-                            
                         ),
-                        
                     ],
                     vertical_alignment=ft.CrossAxisAlignment.START,
                     spacing=14,
                 ),
                 ft.Row(
-                    ft.Container(
-                        expand=4,
-                        content=poses_panel,
+                    controls=[
+                        ft.Container(
+                            expand=4,
+                            content=poses_panel,
                         ),
-                )
+                    ],
+                ),
             ],
             spacing=14,
             expand=True,
         )
+
+        return layout
 
