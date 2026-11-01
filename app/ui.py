@@ -1,13 +1,43 @@
 """Komponen antarmuka pengguna (UI) Flet untuk aplikasi pengambilan foto mahasiswa."""
 
+import asyncio
+import json
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 import flet as ft
 
 from app.config import POSES
 from app.config_ui import ConfigFormDialog
 from app.crop_panel import ShutterCropPanel
+
+MAHASISWA_API_URL = ""
+
+
+def _fetch_mahasiswa_by_nim(nim: str, timeout: float = 10.0) -> Optional[Dict[str, Any]]:
+    """Mengambil data mahasiswa dari API berdasarkan NIM (dijalankan di thread terpisah)."""
+    query = urllib.parse.urlencode({"nim": nim})
+    url = f"{MAHASISWA_API_URL}?{query}"
+    req = urllib.request.Request(
+        url,
+        method="GET",
+        headers={"Accept": "application/json", "User-Agent": "Canon-M50-FletApp/1.0"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read().decode("utf-8")
+        payload = json.loads(raw)
+
+    if isinstance(payload, list):
+        return payload[0] if len(payload) > 0 and isinstance(payload[0], dict) else None
+    if isinstance(payload, dict):
+        if "data" in payload and isinstance(payload["data"], list):
+            return payload["data"][0] if payload["data"] else None
+        if payload.get("nim") or payload.get("nama_mahasiswa"):
+            return payload
+    return None
 
 
 class AppUI:
@@ -24,6 +54,7 @@ class AppUI:
         on_save_data: Callable[[], None],
         on_crop_saved: Callable[[Path], None],
         on_crop_cancel: Callable[[], None],
+        # on_cancle_save:Callable[[],None],
     ):
         self.page = page
         self.on_camera_toggle = on_camera_toggle
@@ -31,13 +62,25 @@ class AppUI:
         self.on_save_data = on_save_data
         self.on_crop_saved = on_crop_saved
         self.on_crop_cancel = on_crop_cancel
+        # self.on_cancle_save = on_cancle_save
 
         # Config Form Dialog
         self.config_dialog = ConfigFormDialog(page=page, on_saved_callback=self._on_config_updated)
 
         # Form fields
-        self.nim_field = ft.TextField(label="NIM *", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
-        self.nama_field = ft.TextField(label="Nama Lengkap Mahasiswa", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
+        self._extra_student_data: Dict[str, str] = {}
+        self.nim_field = ft.TextField(
+            label="NIM *", 
+            dense=True, 
+            border=ft.OutlineInputBorder(border_radius=10,), 
+            keyboard_type=ft.KeyboardType.NUMBER,
+            input_filter=ft.InputFilter(
+                allow=True,
+                regex_string=r"[0-9]",
+            ),
+            on_submit=self.cari_mahasiswa,
+            )
+        self.nama_field = ft.TextField(label="Nama Lengkap Mahasiswa", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
         # self.alamat_field = ft.TextField(
         #     label="Alamat",
         #     multiline=True,
@@ -47,12 +90,24 @@ class AppUI:
         #     border_radius=8,
         # )
         # self.kode_prodi_field = ft.TextField(label="Kode Prodi", dense=True, border_radius=8)
-        self.nama_prodi_field = ft.TextField(label="Nama Prodi", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
+        self.nama_prodi_field = ft.TextField(label="Nama Prodi", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
         # self.kode_fakultas_field = ft.TextField(label="Kode Fakultas", dense=True, border_radius=8)
-        self.nama_fakultas_field = ft.TextField(label="Nama Fakultas", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
+        self.nama_fakultas_field = ft.TextField(label="Nama Fakultas", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
         # self.kode_institusi_field = ft.TextField(label="Kode Institusi", dense=True, border_radius=8)
-        self.nama_institusi_field = ft.TextField(label="Nama Institusi", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
-        self.semester_field = ft.TextField(label="Semester", dense=True, border=ft.OutlineInputBorder(border_radius=10,),)
+        self.nama_institusi_field = ft.TextField(label="Nama Institusi", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
+        self.semester_field = ft.TextField(label="Semester", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
+
+        self.student_detail_column = ft.Column(
+            controls=[
+                self.nama_field,
+                self.nama_institusi_field,
+                self.nama_fakultas_field,
+                self.nama_prodi_field,
+                self.semester_field,
+            ],
+            spacing=10,
+            visible=False,
+        )
         
         # Status text
         self.camera_status = ft.Text("Kamera belum aktif", color="#64748B", size=13)
@@ -136,6 +191,7 @@ class AppUI:
             icon=ft.Icons.SAVE,
             on_click=lambda _: self.on_save_data(),
             height=44,
+            visible=False,
             style=ft.ButtonStyle(
             bgcolor="#16803C",
             color="#FFFFFF",
@@ -146,10 +202,23 @@ class AppUI:
         self.mahasiswa_cancle_button = ft.FilledButton(
                     "Batal",
                     icon=ft.Icons.CANCEL,
-                    # on_click=lambda _: self.on_save_data(),
+                    on_click=lambda _: self.tampilkan_pesan("Apakah Anda yakin ingin membatalkan data?"),
                     height=44,
+                    visible=False,
                     style=ft.ButtonStyle(
                     bgcolor="#5D6661",
+                    color="#FFFFFF",
+                    shape=ft.RoundedRectangleBorder(radius=9),
+                    ),
+                )
+        
+        self.mahasiswa_cari_button = ft.FilledButton(
+                    "Cari",
+                    icon=ft.Icons.SEARCH,
+                    on_click=self.cari_mahasiswa,
+                    height=44,
+                    style=ft.ButtonStyle(
+                    bgcolor="#05191D",
                     color="#FFFFFF",
                     shape=ft.RoundedRectangleBorder(radius=9),
                     ),
@@ -246,13 +315,66 @@ class AppUI:
             "nim": self.get_nim(),
             "nama": (self.nama_field.value or "").strip(),
             "semester": (self.semester_field.value or "").strip(),
-            "kode_prodi": (self.kode_prodi_field.value or "").strip(),
             "nama_prodi": (self.nama_prodi_field.value or "").strip(),
-            "kode_fakultas": (self.kode_fakultas_field.value or "").strip(),
             "nama_fakultas": (self.nama_fakultas_field.value or "").strip(),
-            "kode_institusi": (self.kode_institusi_field.value or "").strip(),
             "nama_institusi": (self.nama_institusi_field.value or "").strip(),
+            "tempat_lahir": self._extra_student_data.get("tempat_lahir", ""),
+            "tanggal_Lahir": self._extra_student_data.get("tanggal_Lahir", ""),
+            "status_mahasiswa": self._extra_student_data.get("status_mahasiswa", ""),
         }
+
+    async def cari_mahasiswa(self, _=None) -> None:
+        """Mencari data mahasiswa lewat API berdasarkan NIM dan menampilkan form detail."""
+        nim = self.get_nim()
+        if not nim:
+            self.notify("Masukkan NIM terlebih dahulu untuk mencari data.", "#B45309")
+            return
+
+        self.mahasiswa_cari_button.disabled = True
+        self.mahasiswa_cari_button.content = "Mencari..."
+        self.notify(f"Mencari data mahasiswa NIM {nim}...", "#1677E8")
+
+        try:
+            data = await asyncio.to_thread(_fetch_mahasiswa_by_nim, nim)
+        except urllib.error.HTTPError as exc:
+            self.mahasiswa_cari_button.disabled = False
+            self.mahasiswa_cari_button.content = "Cari"
+            self.notify(f"Gagal mengambil data dari API (HTTP {exc.code}).", "#B91C1C")
+            return
+        except Exception as exc:
+            self.mahasiswa_cari_button.disabled = False
+            self.mahasiswa_cari_button.content = "Cari"
+            self.notify(f"Gagal menghubungi API mahasiswa: {exc}", "#B91C1C")
+            return
+
+        self.mahasiswa_cari_button.disabled = False
+        self.mahasiswa_cari_button.content = "Cari"
+
+        if not data:
+            self.student_detail_column.visible = False
+            self.mahasiswa_simpan_button.visible = False
+            self.mahasiswa_cancle_button.visible = False
+            self.notify(f"Data mahasiswa dengan NIM {nim} tidak ditemukan.", "#B45309")
+            return
+
+        self.nim_field.value = str(data.get("nim") or nim)
+        self.nama_field.value = str(data.get("nama_mahasiswa") or "")
+        self.nama_prodi_field.value = str(data.get("nama_prodi") or "")
+        self.nama_fakultas_field.value = str(data.get("fakultas") or "")
+        self.nama_institusi_field.value = str(data.get("institusi") or "")
+        semester_val = data.get("semester")
+        self.semester_field.value = str(semester_val) if semester_val is not None else ""
+
+        self._extra_student_data = {
+            "tempat_lahir": str(data.get("tempat_lahir") or ""),
+            "tanggal_Lahir": str(data.get("tanggal_Lahir") or ""),
+            "status_mahasiswa": str(data.get("status_mahasiswa") or ""),
+        }
+
+        self.student_detail_column.visible = True
+        self.mahasiswa_simpan_button.visible = True
+        self.mahasiswa_cancle_button.visible = True
+        self.notify(f"Data ditemukan: {self.nama_field.value} ({self.nim_field.value})", "#16803C")
 
     def notify(self, message: str, color: str = "#334155") -> None:
         self.camera_status.value = message
@@ -294,26 +416,81 @@ class AppUI:
                     border_radius=8,
                     gapless_playback=True,
                 )
-                self.pose_labels[index].value = "✓ Foto tersimpan"
-                self.pose_labels[index].color = "#16803C"
+                # self.pose_labels[index].value = "✓ Foto tersimpan"
+                # self.pose_labels[index].color = "#16803C"
                 self.pose_status.value = f"Foto {index + 1}/7 tersimpan: {POSES[index][1]}"
                 self.page.update()
             except Exception as exc:
                 print(f"[UI] Error loading thumbnail: {exc}")
+
+    def cancel_save(self) -> None:
+        self.nim_field.value = ""
+        self.nama_institusi_field.value = ""
+        self.nama_field.value = ""
+        self.nama_prodi_field.value = ""
+        self.nama_fakultas_field.value = ""
+        self.semester_field.value = ""
+        self._extra_student_data = {}
+        self.student_detail_column.visible = False
+        self.mahasiswa_simpan_button.visible = False
+        self.mahasiswa_cancle_button.visible = False
+        self.clear_all_pose_thumbnails()
+        self.page.update()
+
+    def tampilkan_pesan(self,pesan)-> None:
+        if self.nim_field.value and self.nim_field.value.strip():
+            dlg = ft.AlertDialog(
+                modal=True,
+                title=ft.Text("Informasi"),
+                content=ft.Text(pesan),
+                actions=[
+                    ft.TextButton(
+                        "Ya",
+                        on_click=lambda e: (
+                            self.page.pop_dialog(),
+                            self.cancel_save()
+                        )
+                    ),
+                    ft.TextButton(
+                        "Tidak",
+                        on_click=lambda e: self.page.pop_dialog()
+                    ),
+                ],
+            )
+            self.page.show_dialog(dlg)
+        
+
+    def clear_all_pose_thumbnails(self) -> None:
+        try:
+            for index, image_box in enumerate(self.pose_image_boxes):
+                self.pose_image_boxes[index].content = ft.Column(
+                controls=[
+                    ft.Icon(ft.Icons.PERSON, size=34, color="#6482A8"),
+                    # ft.Text("Belum diambil", size=10, color="#64748B"),
+                ],
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=3,
+            )
+
+            self.page.update()
+
+        except Exception as exc:
+            print(f"[UI] Error clearing thumbnails: {exc}")
 
     def reset_pose_thumbnail(self, index: int) -> None:
         if 0 <= index < len(self.pose_image_boxes):
             self.pose_image_boxes[index].content = ft.Column(
                 controls=[
                     ft.Icon(ft.Icons.PERSON, size=34, color="#6482A8"),
-                    ft.Text("Belum diambil", size=10, color="#64748B"),
+                    # ft.Text("Belum diambil", size=10, color="#64748B"),
                 ],
                 alignment=ft.MainAxisAlignment.CENTER,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                 spacing=3,
             )
-            self.pose_labels[index].value = "Belum diambil"
-            self.pose_labels[index].color = "#64748B"
+            # self.pose_labels[index].value = "Belum diambil"
+            # self.pose_labels[index].color = "#64748B"
             self.pose_status.value = f"Foto pose {index + 1} ({POSES[index][1]}) dibatalkan."
             self.page.update()
 
@@ -357,7 +534,7 @@ class AppUI:
                                 border_radius=20,
                                 bgcolor="#1677E8",
                                 alignment=ft.Alignment.CENTER,
-                                content=ft.Text(number, color="#FFFFFF", weight=ft.FontWeight.BOLD),
+                                content=ft.Text(number, color="#FFFFFF", weight=ft.FontWeight.BOLD, size=10),
                             ),
                             ft.Text(title, size=12, weight=ft.FontWeight.BOLD, color="#17365D"),
                         ],
@@ -394,11 +571,11 @@ class AppUI:
                                 weight=ft.FontWeight.BOLD,
                                 color="#FFFFFF",
                             ),
-                            ft.Text(
-                                "gphoto2 • SQLite Config • Live Preview OpenCV • Crop Wajah",
-                                size=13,
-                                color="#DCEBFA",
-                            ),
+                            # ft.Text(
+                            #     "gphoto2 • SQLite Config • Live Preview OpenCV • Crop Wajah",
+                            #     size=13,
+                            #     color="#DCEBFA",
+                            # ),
                         ],
                         spacing=2,
                     ),
@@ -431,17 +608,18 @@ class AppUI:
                             ft.Icon(ft.Icons.CAMERA_ALT, color="#1767B1", size=22),
                             ft.Text("Kamera & Hasil Shutter", size=18, weight=ft.FontWeight.BOLD, color="#17365D"),
                             ft.Container(expand=True),
-                            self.camera_status,
+                            # self.camera_status,
                         ],
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                     self.tabs,
-                    ft.Text(
-                        "Preview berasal dari HDMI capture card via OpenCV; foto asli diambil via gphoto2 USB "
-                        "dan langsung ditampilkan di tab Hasil Shutter & Crop.",
-                        size=11,
-                        color="#52657D",
-                    ),
+                    self.camera_status,
+                    # ft.Text(
+                    #     "Preview berasal dari HDMI capture card via OpenCV; foto asli diambil via gphoto2 USB "
+                    #     "dan langsung ditampilkan di tab Hasil Shutter & Crop.",
+                    #     size=11,
+                    #     color="#52657D",
+                    # ),
                     ft.Row(
                         controls=[self.camera_button],
                         spacing=10,
@@ -488,23 +666,16 @@ class AppUI:
                         spacing=8,
                     ),
                     self.nim_field,
-                    self.nama_field,
-                    # self.alamat_field,
-                    # self.kode_prodi_field,
-                    self.nama_institusi_field,
-                    self.nama_fakultas_field,
-                    self.nama_prodi_field,
-                    self.semester_field,
-                    # self.kode_institusi_field,
+                    self.student_detail_column,
                     ft.Row(
-                        controls=[self.mahasiswa_simpan_button,self.mahasiswa_cancle_button]
+                        controls=[self.mahasiswa_simpan_button,self.mahasiswa_cancle_button,self.mahasiswa_cari_button]
                     ),
                     
-                    ft.Text(
-                        "Data mahasiswa disimpan ke data_mahasiswa.json beserta 7 foto hasil crop 640x640.",
-                        size=11,
-                        color="#64748B",
-                    ),
+                    # ft.Text(
+                    #     "Data mahasiswa disimpan ke data_mahasiswa.json beserta 7 foto hasil crop 640x640.",
+                    #     size=11,
+                    #     color="#64748B",
+                    # ),
                 ],
                 spacing=10,
             ),

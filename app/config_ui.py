@@ -1,5 +1,7 @@
 """Komponen dialog/form pengaturan konfigurasi aplikasi dan manajemen CRUD poses."""
 
+import asyncio
+from pathlib import Path
 from typing import Callable, Optional
 import flet as ft
 from app import db
@@ -31,11 +33,11 @@ class ConfigFormDialog:
         self.margin_right_field = self.create_text_field("Margin Right")
         self.face_detect_max_field = self.create_text_field("Face Detect Max Side (px)")
 
-        self.output_dir_field = self.create_text_field("Folder Output")
+        self.output_dir_field = self.create_text_field("Folder Output", expand=True)
 
         # Pose inputs (untuk Add / Edit)
         self.editing_pose_id: Optional[int] = None
-        self.pose_code_field = ft.TextField(label="Kode (mis. 1, 2)", dense=True, width=100)
+        self.pose_code_field = ft.TextField(label="Kode", dense=True, width=100)
         self.pose_title_field = ft.TextField(label="Judul Pose", dense=True, expand=True)
         self.pose_desc_field = ft.TextField(label="Deskripsi Instruksi", dense=True, expand=True)
 
@@ -64,10 +66,39 @@ class ConfigFormDialog:
 
         self.refresh_poses_list()
 
-    def create_text_field(self,label, width=None):
+    async def choose_folder(self, _) -> None:
+        """Membuka dialog pemilihan folder (kompatibel dengan Flet 1.0.5 Service & Linux zenity)."""
+        selected_path: Optional[str] = None
+        try:
+            selected_path = await ft.FilePicker().get_directory_path(
+                dialog_title="Pilih Folder Penyimpanan Foto Mahasiswa"
+            )
+        except Exception:
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    "zenity",
+                    "--file-selection",
+                    "--directory",
+                    "--title=Pilih Folder Penyimpanan Foto Mahasiswa",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, _ = await proc.communicate()
+                if proc.returncode == 0 and stdout:
+                    selected_path = stdout.decode("utf-8").strip()
+            except Exception as exc:
+                self.show_snack(f"Gagal membuka dialog folder: {exc}", is_error=True)
+                return
+
+        if selected_path:
+            self.output_dir_field.value = selected_path
+            self.output_dir_field.update()
+
+    def create_text_field(self, label, width=None, expand=False):
         return ft.TextField(
             label=label,
             width=width,
+            expand=expand,
             dense=True,
             text_size=17,
             label_style=ft.TextStyle(size=11),
@@ -150,7 +181,7 @@ class ConfigFormDialog:
 
             self.poses_list_column.controls.append(row)
 
-    def start_edit_pose(self,pose_id: int,ode: str,title: str,desc: str,) -> None:
+    def start_edit_pose(self, pose_id: int, code: str, title: str, desc: str) -> None:
         """Mengisi form edit pose dengan data yang dipilih."""
         self.editing_pose_id = pose_id
         self.pose_code_field.value = str(code)
@@ -199,6 +230,10 @@ class ConfigFormDialog:
     def save_all_configs(self) -> None:
         """Memvalidasi dan menyimpan seluruh parameter konfigurasi umum ke SQLite."""
         try:
+            out_dir_str = (self.output_dir_field.value or "foto_mahasiswa").strip()
+            # Buat folder jika belum ada
+            Path(out_dir_str).mkdir(parents=True, exist_ok=True)
+
             configs_to_update = {
                 "CAMERA_INDEX": str(int(self.camera_index_field.value or 0)),
                 "PREVIEW_WIDTH": str(int(self.preview_w_field.value or 1280)),
@@ -213,7 +248,7 @@ class ConfigFormDialog:
                 "FACE_MARGIN_LEFT": str(float(self.margin_left_field.value or 0.4)),
                 "FACE_MARGIN_RIGHT": str(float(self.margin_right_field.value or 0.4)),
                 "FACE_DETECT_MAX_SIDE": str(int(self.face_detect_max_field.value or 1000)),
-                "OUTPUT_DIR": (self.output_dir_field.value or "foto_mahasiswa").strip(),
+                "OUTPUT_DIR": out_dir_str,
             }
             db.update_configs_bulk(configs_to_update)
             config.load_config_from_db()
@@ -277,8 +312,19 @@ class ConfigFormDialog:
                     ft.Row([self.margin_left_field, self.margin_right_field]),
                     self.face_detect_max_field,
                     # ft.Divider(height=1),
-                    ft.Text("Penyimpanan", weight=ft.FontWeight.BOLD, color="#1E293B", size=14),
-                    self.output_dir_field,
+                    ft.Text("Penyimpanan Foto Mahasiswa", weight=ft.FontWeight.BOLD, color="#1E293B", size=14),
+                    ft.Row(
+                        controls=[
+                            self.output_dir_field,
+                            ft.IconButton(
+                                icon=ft.Icons.FOLDER_OPEN,
+                                tooltip="Pilih Folder...",
+                                icon_color="#1E3A8A",
+                                on_click=self.choose_folder,
+                            ),
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
                 ],
             ),
         )
@@ -359,6 +405,7 @@ class ConfigFormDialog:
         )
 
         self.dialog = ft.AlertDialog(
+            modal=True,
             title=ft.Row(
                 controls=[
                     ft.Icon(ft.Icons.SETTINGS, color="#1677E8"),

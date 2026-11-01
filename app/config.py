@@ -6,13 +6,13 @@ from app import db
 
 # Default fallback values
 POSES: List[Tuple[str, str, str]] = [
-    ("1", "Dengak", "Arahkan dagu sedikit ke atas"),
-    ("2", "Nunduk", "Arahkan dagu sedikit ke bawah"),
-    ("3", "Lurus", "Hadapkan wajah ke depan"),
-    ("4", "Ke kiri 20 derajat", "Putar wajah ke kiri sekitar 20°"),
-    ("5", "Ke kiri 30 derajat", "Putar wajah ke kiri sekitar 30°"),
-    ("6", "Ke kanan 20 derajat", "Putar wajah ke kanan sekitar 20°"),
-    ("7", "Ke kanan 30 derajat", "Putar wajah ke kanan sekitar 30°"),
+    ("H-20", "Ke kiri 30 derajat", "Putar wajah ke kiri sekitar 30°"),
+    ("H-10", "Ke kiri 20 derajat", "Putar wajah ke kiri sekitar 20°"),
+    ("0", "Lurus", "Hadapkan wajah ke depan"),
+    ("H10", "Ke kanan 20 derajat", "Putar wajah ke kanan sekitar 20°"),
+    ("H20", "Ke kanan 30 derajat", "Putar wajah ke kanan sekitar 30°"),
+    ("V3", "Dengak", "Arahkan dagu sedikit ke atas"),
+    ("V-3", "Nunduk", "Arahkan dagu sedikit ke bawah"),
 ]
 
 CAMERA_INDEX: int = 0
@@ -62,6 +62,8 @@ def load_config_from_db() -> None:
             SHUTTER_DISPLAY_MAX_SIDE = int(loaded_configs.get("SHUTTER_DISPLAY_MAX_SIDE", SHUTTER_DISPLAY_MAX_SIDE))
             out_val = loaded_configs.get("OUTPUT_DIR", OUTPUT_DIR)
             OUTPUT_DIR = Path(out_val) if not isinstance(out_val, Path) else out_val
+            # Buat folder jika belum ada
+            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
         loaded_poses = db.get_all_poses()
         if loaded_poses:

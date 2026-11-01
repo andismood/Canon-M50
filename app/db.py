@@ -26,13 +26,13 @@ DEFAULT_CONFIGS = {
 }
 
 DEFAULT_POSES = [
-    ("1", "Dengak", "Arahkan dagu sedikit ke atas"),
-    ("2", "Nunduk", "Arahkan dagu sedikit ke bawah"),
-    ("3", "Lurus", "Hadapkan wajah ke depan"),
-    ("4", "Ke kiri 20 derajat", "Putar wajah ke kiri sekitar 20°"),
-    ("5", "Ke kiri 30 derajat", "Putar wajah ke kiri sekitar 30°"),
-    ("6", "Ke kanan 20 derajat", "Putar wajah ke kanan sekitar 20°"),
-    ("7", "Ke kanan 30 derajat", "Putar wajah ke kanan sekitar 30°"),
+    ("H-20", "Ke kiri 30 derajat", "Putar wajah ke kiri sekitar 30°"),
+    ("H-10", "Ke kiri 20 derajat", "Putar wajah ke kiri sekitar 20°"),
+    ("0", "Lurus", "Hadapkan wajah ke depan"),
+    ("H10", "Ke kanan 20 derajat", "Putar wajah ke kanan sekitar 20°"),
+    ("H20", "Ke kanan 30 derajat", "Putar wajah ke kanan sekitar 30°"),
+    ("V3", "Dengak", "Arahkan dagu sedikit ke atas"),
+    ("V-3", "Nunduk", "Arahkan dagu sedikit ke bawah"),
 ]
 
 

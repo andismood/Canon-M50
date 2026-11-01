@@ -5,7 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from app.config import OUTPUT_DIR, POSES
+from app import config
+from app.config import POSES
 
 
 def sanitize_nim(nim: Optional[str]) -> Optional[str]:
@@ -21,7 +22,7 @@ def get_student_dir(nim: Optional[str], create: bool = True) -> Optional[Path]:
     safe_nim = sanitize_nim(nim)
     if not safe_nim:
         return None
-    folder = OUTPUT_DIR / safe_nim
+    folder = config.OUTPUT_DIR / safe_nim
     if create:
         folder.mkdir(parents=True, exist_ok=True)
     return folder
@@ -43,13 +44,13 @@ def save_student_data(
     data: Dict[str, Any] = {
         "nim": nim.strip(),
         "nama": form_values.get("nama", "").strip(),
-        "alamat": form_values.get("alamat", "").strip(),
-        "kode_prodi": form_values.get("kode_prodi", "").strip(),
         "nama_prodi": form_values.get("nama_prodi", "").strip(),
-        "kode_fakultas": form_values.get("kode_fakultas", "").strip(),
         "nama_fakultas": form_values.get("nama_fakultas", "").strip(),
-        "kode_institusi": form_values.get("kode_institusi", "").strip(),
         "nama_institusi": form_values.get("nama_institusi", "").strip(),
+        "semester": form_values.get("semester", "").strip(),
+        "tempat_lahir": form_values.get("tempat_lahir", "").strip(),
+        "tanggal_Lahir": form_values.get("tanggal_Lahir", "").strip(),
+        "status_mahasiswa": form_values.get("status_mahasiswa", "").strip(),
         "waktu_simpan": datetime.now().isoformat(timespec="seconds"),
         "foto": captured_paths,
     }

@@ -173,6 +173,9 @@ def main(page: ft.Page):
             ui.reset_pose_thumbnail(index)
             ui.notify(f"Pengambilan foto pose {index + 1} dibatalkan.", "#64748B")
 
+    # def on_cancle_save():
+    #     ui.tampilkan_pesan("Apakah Anda yakin ingin membatalkan data?")
+
     def on_save_data():
         nim_val = ui.get_nim()
         safe_nim = sanitize_nim(nim_val)
@@ -205,6 +208,7 @@ def main(page: ft.Page):
         on_save_data=on_save_data,
         on_crop_saved=on_crop_saved,
         on_crop_cancel=on_crop_cancel,
+        # on_cancle_save = on_cancle_save
     )
 
     page.add(ui.build_layout())
