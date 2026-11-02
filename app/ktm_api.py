@@ -4,7 +4,7 @@ class KtmApi:
     def __init__(self, timeout=15.0):
         self.timeout = timeout
 
-    BASE_URL = "http://10.0.0.80:8045/api/ktm"
+    BASE_URL = "http://localhost/api/ktm"
 
 
     async def get_by_nim(self, nim: str):
