@@ -14,31 +14,6 @@ from app.config import POSES
 from app.config_ui import ConfigFormDialog
 from app.crop_panel import ShutterCropPanel
 
-MAHASISWA_API_URL = ""
-
-
-def _fetch_mahasiswa_by_nim(nim: str, timeout: float = 10.0) -> Optional[Dict[str, Any]]:
-    """Mengambil data mahasiswa dari API berdasarkan NIM (dijalankan di thread terpisah)."""
-    query = urllib.parse.urlencode({"nim": nim})
-    url = f"{MAHASISWA_API_URL}?{query}"
-    req = urllib.request.Request(
-        url,
-        method="GET",
-        headers={"Accept": "application/json", "User-Agent": "Canon-M50-FletApp/1.0"},
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        raw = resp.read().decode("utf-8")
-        payload = json.loads(raw)
-
-    if isinstance(payload, list):
-        return payload[0] if len(payload) > 0 and isinstance(payload[0], dict) else None
-    if isinstance(payload, dict):
-        if "data" in payload and isinstance(payload["data"], list):
-            return payload["data"][0] if payload["data"] else None
-        if payload.get("nim") or payload.get("nama_mahasiswa"):
-            return payload
-    return None
-
 
 class AppUI:
     """Mengelola pembuatan dan pembaruan komponen tampilan UI."""
@@ -54,6 +29,7 @@ class AppUI:
         on_save_data: Callable[[], None],
         on_crop_saved: Callable[[Path], None],
         on_crop_cancel: Callable[[], None],
+        on_cari_data:Callable[[],None],
         # on_cancle_save:Callable[[],None],
     ):
         self.page = page
@@ -62,6 +38,7 @@ class AppUI:
         self.on_save_data = on_save_data
         self.on_crop_saved = on_crop_saved
         self.on_crop_cancel = on_crop_cancel
+        self.on_cari_data = on_cari_data
         # self.on_cancle_save = on_cancle_save
 
         # Config Form Dialog
@@ -72,14 +49,17 @@ class AppUI:
         self.nim_field = ft.TextField(
             label="NIM *", 
             dense=True, 
+            autofocus=True,
             border=ft.OutlineInputBorder(border_radius=10,), 
             keyboard_type=ft.KeyboardType.NUMBER,
             input_filter=ft.InputFilter(
                 allow=True,
                 regex_string=r"[0-9]",
             ),
-            on_submit=self.cari_mahasiswa,
+            on_submit=self.on_cari_data
+            # on_submit=self.cari_mahasiswa,
             )
+        
         self.nama_field = ft.TextField(label="Nama Lengkap Mahasiswa", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
         # self.alamat_field = ft.TextField(
         #     label="Alamat",
@@ -96,6 +76,7 @@ class AppUI:
         # self.kode_institusi_field = ft.TextField(label="Kode Institusi", dense=True, border_radius=8)
         self.nama_institusi_field = ft.TextField(label="Nama Institusi", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
         self.semester_field = ft.TextField(label="Semester", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
+        self.status_field = ft.TextField(label="Status Akademik", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
 
         self.student_detail_column = ft.Column(
             controls=[
@@ -104,9 +85,10 @@ class AppUI:
                 self.nama_fakultas_field,
                 self.nama_prodi_field,
                 self.semester_field,
+                self.status_field,
             ],
             spacing=10,
-            visible=False,
+            visible=True,
         )
         
         # Status text
@@ -215,7 +197,7 @@ class AppUI:
         self.mahasiswa_cari_button = ft.FilledButton(
                     "Cari",
                     icon=ft.Icons.SEARCH,
-                    on_click=self.cari_mahasiswa,
+                    on_click=self.on_cari_data,
                     height=44,
                     style=ft.ButtonStyle(
                     bgcolor="#05191D",
@@ -256,19 +238,6 @@ class AppUI:
         # Update hanya jika UI sudah selesai dibuat
         if getattr(self, "_layout_ready", False):
             self.pose_cards_row.update()
-
-    # def rebuild_pose_cards(self) -> None:
-    #     """Menyusun ulang kartu pose di UI berdasarkan nilai POSES terbaru."""
-    #     self.pose_image_boxes.clear()
-    #     self.pose_labels.clear()
-    #     self.pose_buttons.clear()
-    #     self.pose_cards_row.controls.clear()
-
-    #     for i, (num, title, desc) in enumerate(POSES):
-    #         self.pose_cards_row.controls.append(self.build_pose_card(i, num, title, desc))
-        
-    #     if self.pose_cards_row.page is not None:
-    #         self.pose_cards_row.update()
             
 
     def select_tab(self, index: int) -> None:
@@ -320,61 +289,65 @@ class AppUI:
             "nama_institusi": (self.nama_institusi_field.value or "").strip(),
             "tempat_lahir": self._extra_student_data.get("tempat_lahir", ""),
             "tanggal_Lahir": self._extra_student_data.get("tanggal_Lahir", ""),
-            "status_mahasiswa": self._extra_student_data.get("status_mahasiswa", ""),
+            # "status_mahasiswa": self._extra_student_data.get("status_mahasiswa", ""),
         }
 
-    async def cari_mahasiswa(self, _=None) -> None:
-        """Mencari data mahasiswa lewat API berdasarkan NIM dan menampilkan form detail."""
-        nim = self.get_nim()
-        if not nim:
-            self.notify("Masukkan NIM terlebih dahulu untuk mencari data.", "#B45309")
-            return
+    # async def cari_mahasiswa(self, _=None) -> None:
+    #     """Mencari data mahasiswa lewat API berdasarkan NIM dan menampilkan form detail."""
+    #     nim = self.get_nim()
+    #     if not nim:
+    #         self.notify("Masukkan NIM terlebih dahulu untuk mencari data.", "#B45309")
+    #         return
 
-        self.mahasiswa_cari_button.disabled = True
-        self.mahasiswa_cari_button.content = "Mencari..."
-        self.notify(f"Mencari data mahasiswa NIM {nim}...", "#1677E8")
+    #     self.mahasiswa_cari_button.disabled = True
+    #     self.mahasiswa_cari_button.content = "Mencari..."
+    #     self.notify(f"Mencari data mahasiswa NIM {nim}...", "#1677E8")
 
-        try:
-            data = await asyncio.to_thread(_fetch_mahasiswa_by_nim, nim)
-        except urllib.error.HTTPError as exc:
-            self.mahasiswa_cari_button.disabled = False
-            self.mahasiswa_cari_button.content = "Cari"
-            self.notify(f"Gagal mengambil data dari API (HTTP {exc.code}).", "#B91C1C")
-            return
-        except Exception as exc:
-            self.mahasiswa_cari_button.disabled = False
-            self.mahasiswa_cari_button.content = "Cari"
-            self.notify(f"Gagal menghubungi API mahasiswa: {exc}", "#B91C1C")
-            return
+    #     try:
+    #         data = await asyncio.to_thread(_fetch_mahasiswa_by_nim, nim)
+    #     except urllib.error.HTTPError as exc:
+    #         self.mahasiswa_cari_button.disabled = False
+    #         self.mahasiswa_cari_button.content = "Cari"
+    #         self.cancel_save()
+    #         self.notify(f"Gagal mengambil data dari API (HTTP {exc.code}).", "#B91C1C")
+    #         return
+    #     except Exception as exc:
+    #         self.mahasiswa_cari_button.disabled = False
+    #         self.mahasiswa_cari_button.content = "Cari"
+    #         self.cancel_save()
+    #         self.notify(f"Gagal menghubungi API mahasiswa: {exc}", "#B91C1C")
+    #         return
 
-        self.mahasiswa_cari_button.disabled = False
-        self.mahasiswa_cari_button.content = "Cari"
+    #     self.mahasiswa_cari_button.disabled = False
+    #     self.mahasiswa_cari_button.content = "Cari"
 
-        if not data:
-            self.student_detail_column.visible = False
-            self.mahasiswa_simpan_button.visible = False
-            self.mahasiswa_cancle_button.visible = False
-            self.notify(f"Data mahasiswa dengan NIM {nim} tidak ditemukan.", "#B45309")
-            return
+    #     if not data:
+    #         self.student_detail_column.visible = False
+    #         self.mahasiswa_simpan_button.visible = False
+    #         self.mahasiswa_cancle_button.visible = False
+    #         self.cancel_save()
+    #         self.notify(f"Data mahasiswa dengan NIM {nim} tidak ditemukan.", "#B45309")
+    #         return
 
-        self.nim_field.value = str(data.get("nim") or nim)
-        self.nama_field.value = str(data.get("nama_mahasiswa") or "")
-        self.nama_prodi_field.value = str(data.get("nama_prodi") or "")
-        self.nama_fakultas_field.value = str(data.get("fakultas") or "")
-        self.nama_institusi_field.value = str(data.get("institusi") or "")
-        semester_val = data.get("semester")
-        self.semester_field.value = str(semester_val) if semester_val is not None else ""
+    #     self.nim_field.value = str(data.get("nim") or nim)
+    #     self.nama_field.value = str(data.get("nama_mahasiswa") or "")
+    #     self.nama_prodi_field.value = str(data.get("nama_prodi") or "")
+    #     self.nama_fakultas_field.value = str(data.get("fakultas") or "")
+    #     self.nama_institusi_field.value = str(data.get("institusi") or "")
+    #     semester_val = data.get("semester")
+    #     self.semester_field.value = str(semester_val) if semester_val is not None else ""
+    #     self.status_field.value = str(data.get("status_mahasiswa") or "")
 
-        self._extra_student_data = {
-            "tempat_lahir": str(data.get("tempat_lahir") or ""),
-            "tanggal_Lahir": str(data.get("tanggal_Lahir") or ""),
-            "status_mahasiswa": str(data.get("status_mahasiswa") or ""),
-        }
+    #     self._extra_student_data = {
+    #         "tempat_lahir": str(data.get("tempat_lahir") or ""),
+    #         "tanggal_Lahir": str(data.get("tanggal_Lahir") or ""),
+            
+    #     }
 
-        self.student_detail_column.visible = True
-        self.mahasiswa_simpan_button.visible = True
-        self.mahasiswa_cancle_button.visible = True
-        self.notify(f"Data ditemukan: {self.nama_field.value} ({self.nim_field.value})", "#16803C")
+        # self.student_detail_column.visible = True
+        # self.mahasiswa_simpan_button.visible = True
+        # self.mahasiswa_cancle_button.visible = True
+        # self.notify(f"Data ditemukan: {self.nama_field.value} ({self.nim_field.value})", "#16803C")
 
     def notify(self, message: str, color: str = "#334155") -> None:
         self.camera_status.value = message
@@ -430,12 +403,17 @@ class AppUI:
         self.nama_prodi_field.value = ""
         self.nama_fakultas_field.value = ""
         self.semester_field.value = ""
+        self.status_field.value = ""
         self._extra_student_data = {}
         self.student_detail_column.visible = False
         self.mahasiswa_simpan_button.visible = False
         self.mahasiswa_cancle_button.visible = False
         self.clear_all_pose_thumbnails()
         self.page.update()
+        self.page.run_task(self.focus_nim)
+
+    async def focus_nim(self):
+        await self.nim_field.focus()    
 
     def tampilkan_pesan(self,pesan)-> None:
         if self.nim_field.value and self.nim_field.value.strip():
@@ -448,7 +426,8 @@ class AppUI:
                         "Ya",
                         on_click=lambda e: (
                             self.page.pop_dialog(),
-                            self.cancel_save()
+                            self.cancel_save(),
+                            
                         )
                     ),
                     ft.TextButton(

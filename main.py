@@ -6,6 +6,7 @@ from typing import List, Optional
 
 import flet as ft
 
+from app.ktm_api import KtmApi
 from app.camera_preview import CameraPreviewManager
 from app import config
 from app.config import CAMERA_INDEX, CROP_SIZE, POSES
@@ -31,7 +32,7 @@ def main(page: ft.Page):
         page.window.height = 940
     except Exception:
         pass
-
+    ktm_api = KtmApi()
     preview_manager = CameraPreviewManager(camera_index=CAMERA_INDEX)
     captured_paths: List[Optional[str]] = [None] * len(POSES)
     preview_task_handle: Optional[asyncio.Task] = None
@@ -201,6 +202,43 @@ def main(page: ft.Page):
         except Exception as exc:
             ui.notify(f"Gagal menyimpan data mahasiswa: {exc}", "#B91C1C")
 
+    async def on_cari_mahasiswa():
+        nim_val = ui.get_nim()
+        safe_nim = sanitize_nim(nim_val)
+        if not safe_nim:
+            ui.notify("NIM wajib diisi sebelum menyimpan data.", "#B45309")
+            return
+        try:
+            ui.mahasiswa_cari_button.disabled = True
+            ui.mahasiswa_cari_button.content = "Mencari..."
+            ui.notify(f"Mencari data mahasiswa NIM {nim_val}...", "#1677E8")
+            data = await ktm_api.get_by_nim(safe_nim)
+            if data is None:
+                print("Mahasiswa tidak ditemukan")
+                return
+
+            ui.nim_field.value = str(data.get("nim") or nim_val)
+            ui.nama_field.value = str(data.get("nama_mahasiswa") or "")
+            ui.nama_prodi_field.value = str(data.get("nama_prodi") or "")
+            ui.nama_fakultas_field.value = str(data.get("fakultas") or "")
+            ui.nama_institusi_field.value = str(data.get("institusi") or "")
+            semester_val = data.get("semester")
+            ui.semester_field.value = str(semester_val) if semester_val is not None else ""
+            ui.status_field.value = str(data.get("status_mahasiswa") or "")
+            
+            ui.mahasiswa_simpan_button.visible = True
+            ui.mahasiswa_cancle_button.visible = True
+            ui.mahasiswa_cari_button.disabled = False
+            ui.mahasiswa_cari_button.content = "Cari"
+            ui.notify(f"Data ditemukan: {ui.nama_field.value} ({ui.nim_field.value})", "#16803C")
+        except Exception as ex:
+            ui.mahasiswa_cari_button.disabled = False
+            ui.mahasiswa_cari_button.content = "Cari"
+            ui.cancel_save()
+            ui.notify(f"GET Error: ", "#B3083B")
+            #  print(f"GET Error: {ex}")
+        
+
     ui = AppUI(
         page=page,
         on_camera_toggle=lambda: page.run_task(on_camera_toggle),
@@ -208,6 +246,7 @@ def main(page: ft.Page):
         on_save_data=on_save_data,
         on_crop_saved=on_crop_saved,
         on_crop_cancel=on_crop_cancel,
+        on_cari_data = on_cari_mahasiswa,
         # on_cancle_save = on_cancle_save
     )
 
