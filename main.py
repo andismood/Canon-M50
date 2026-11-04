@@ -235,7 +235,7 @@ def main(page: ft.Page):
             ui.mahasiswa_cari_button.disabled = False
             ui.mahasiswa_cari_button.content = "Cari"
             ui.cancel_save()
-            ui.notify(f"GET Error: ", "#B3083B")
+            ui.notify(f"GET Error: {ex}", "#B3083B")
             #  print(f"GET Error: {ex}")
         
 
