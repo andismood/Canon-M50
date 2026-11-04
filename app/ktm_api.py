@@ -23,12 +23,12 @@ class KtmApi:
 
             return data[0]
 
-    async def save_mahasiswa(self, data: dict, file_paths:list):
+    async def save_mahasiswa(self, data: dict, file_paths: list):
         with ExitStack() as stack:
-            files = {
-                ("file",(path, stack.enter_context(open(path, "rb")),"image/jpeg"))
+            files = [
+                ("file", (path, stack.enter_context(open(path, "rb")), "image/jpeg"))
                 for path in file_paths
-            }
+            ]
 
             async with httpx.AsyncClient(timeout=self.timeout) as client:
                 response = await client.post(

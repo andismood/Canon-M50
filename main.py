@@ -15,7 +15,6 @@ from app.storage import (
     get_crop_file_path,
     get_student_dir,
     sanitize_nim,
-    save_student_data,
 )
 from app.ui import AppUI
 
@@ -93,7 +92,7 @@ def main(page: ft.Page):
             return
 
         pose_title = POSES[index][1]
-        crop_dest = get_crop_file_path(student_dir, index)
+        crop_dest = get_crop_file_path(student_dir, index, safe_nim)
 
         capturing = True
         try:
@@ -177,29 +176,40 @@ def main(page: ft.Page):
     # def on_cancle_save():
     #     ui.tampilkan_pesan("Apakah Anda yakin ingin membatalkan data?")
 
-    def on_save_data():
+    async def on_save_data():
         nim_val = ui.get_nim()
         safe_nim = sanitize_nim(nim_val)
         if not safe_nim:
             ui.notify("NIM wajib diisi sebelum menyimpan data.", "#B45309")
             return
 
-        student_dir = get_student_dir(safe_nim, create=True)
+        file_paths = [
+            p
+            for p in captured_paths[: len(config.POSES)]
+            if p and Path(p).is_file()
+        ]
+        if not file_paths:
+            ui.notify("Belum ada foto yang diambil untuk disimpan.", "#B45309")
+            return
+
         form_values = ui.get_form_values()
-        photo_dict = {
-            config.POSES[i][1]: (captured_paths[i] if i < len(captured_paths) else None)
-            for i in range(len(config.POSES))
-        }
 
         try:
-            target_json = save_student_data(
-                student_dir=student_dir,
-                nim=safe_nim,
-                form_values=form_values,
-                captured_paths=photo_dict,
+            ui.mahasiswa_simpan_button.disabled = True
+            ui.mahasiswa_simpan_button.content = "Menyimpan..."
+            ui.notify(f"Mengirim data mahasiswa NIM {safe_nim} ke server...", "#1677E8")
+
+            await ktm_api.save_mahasiswa(
+                data=form_values,
+                file_paths=file_paths,
             )
-            ui.notify(f"Data mahasiswa berhasil disimpan di {target_json}", "#16803C")
+
+            ui.mahasiswa_simpan_button.disabled = False
+            ui.mahasiswa_simpan_button.content = "Simpan"
+            ui.notify(f"Data mahasiswa NIM {safe_nim} berhasil disimpan ke server.", "#16803C")
         except Exception as exc:
+            ui.mahasiswa_simpan_button.disabled = False
+            ui.mahasiswa_simpan_button.content = "Simpan"
             ui.notify(f"Gagal menyimpan data mahasiswa: {exc}", "#B91C1C")
 
     async def on_cari_mahasiswa():
@@ -243,7 +253,7 @@ def main(page: ft.Page):
         page=page,
         on_camera_toggle=lambda: page.run_task(on_camera_toggle),
         on_capture_pose=lambda idx: page.run_task(on_capture_pose, idx),
-        on_save_data=on_save_data,
+        on_save_data=lambda: page.run_task(on_save_data),
         on_crop_saved=on_crop_saved,
         on_crop_cancel=on_crop_cancel,
         on_cari_data = on_cari_mahasiswa,

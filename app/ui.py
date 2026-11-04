@@ -1,10 +1,6 @@
 """Komponen antarmuka pengguna (UI) Flet untuk aplikasi pengambilan foto mahasiswa."""
 
-import asyncio
-import json
-import urllib.error
-import urllib.parse
-import urllib.request
+
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 

@@ -28,36 +28,36 @@ def get_student_dir(nim: Optional[str], create: bool = True) -> Optional[Path]:
     return folder
 
 
-def get_crop_file_path(student_dir: Path, pose_index: int) -> Path:
+def get_crop_file_path(student_dir: Path, pose_index: int, safe_nim: str) -> Path:
     """Mengembalikan path tujuan file crop 640x640 di dalam folder mahasiswa."""
-    title = POSES[pose_index][1].lower().replace(" ", "_")
-    return student_dir / f"{pose_index + 1:02d}_{title}.jpg"
+    kode = POSES[pose_index][0]
+    return student_dir / f"{safe_nim}_{kode}.jpg"
 
 
-def save_student_data(
-    student_dir: Path,
-    nim: str,
-    form_values: Dict[str, str],
-    captured_paths: Dict[str, Optional[str]],
-) -> Path:
-    """Menyimpan data_mahasiswa.json ke folder mahasiswa."""
-    data: Dict[str, Any] = {
-        "nim": nim.strip(),
-        "nama": form_values.get("nama", "").strip(),
-        "nama_prodi": form_values.get("nama_prodi", "").strip(),
-        "nama_fakultas": form_values.get("nama_fakultas", "").strip(),
-        "nama_institusi": form_values.get("nama_institusi", "").strip(),
-        "semester": form_values.get("semester", "").strip(),
-        "tempat_lahir": form_values.get("tempat_lahir", "").strip(),
-        "tanggal_Lahir": form_values.get("tanggal_Lahir", "").strip(),
-        "status_mahasiswa": form_values.get("status_mahasiswa", "").strip(),
-        "waktu_simpan": datetime.now().isoformat(timespec="seconds"),
-        "foto": captured_paths,
-    }
+# def save_student_data(
+#     student_dir: Path,
+#     nim: str,
+#     form_values: Dict[str, str],
+#     captured_paths: Dict[str, Optional[str]],
+# ) -> Path:
+#     """Menyimpan data_mahasiswa.json ke folder mahasiswa."""
+#     data: Dict[str, Any] = {
+#         "nim": nim.strip(),
+#         "nama": form_values.get("nama", "").strip(),
+#         "nama_prodi": form_values.get("nama_prodi", "").strip(),
+#         "nama_fakultas": form_values.get("nama_fakultas", "").strip(),
+#         "nama_institusi": form_values.get("nama_institusi", "").strip(),
+#         "semester": form_values.get("semester", "").strip(),
+#         "tempat_lahir": form_values.get("tempat_lahir", "").strip(),
+#         "tanggal_Lahir": form_values.get("tanggal_Lahir", "").strip(),
+#         "status_mahasiswa": form_values.get("status_mahasiswa", "").strip(),
+#         "waktu_simpan": datetime.now().isoformat(timespec="seconds"),
+#         "foto": captured_paths,
+#     }
 
-    target_json = student_dir / "data_mahasiswa.json"
-    with open(target_json, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+#     target_json = student_dir / "data_mahasiswa.json"
+#     with open(target_json, "w", encoding="utf-8") as f:
+#         json.dump(data, f, ensure_ascii=False, indent=2)
 
-    return target_json
+#     return target_json
 
