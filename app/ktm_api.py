@@ -16,9 +16,13 @@ class KtmApi:
             )
 
             response.raise_for_status()
-            data = response.json()
+            
 
-            if not data:
+            if response.status_code == 404:
+                return None
+            elif response.status_code == 200:
+                data = response.json()
+            else:
                 return None
 
             return data[0]

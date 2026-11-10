@@ -28,7 +28,7 @@ from app.image_utils import (
 class ShutterCropPanel:
     """Menampilkan foto hasil shutter beserta kotak crop yang dapat disesuaikan."""
 
-    VIEWPORT_W = 760
+    VIEWPORT_W = 660
     VIEWPORT_H = 390
     ZOOM_MIN = 0.5
     ZOOM_MAX = 4.0

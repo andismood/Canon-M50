@@ -1,11 +1,17 @@
 """Manajemen database SQLite untuk konfigurasi aplikasi dan daftar pose."""
 
 import sqlite3
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-# Lokasi database SQLite di root folder proyek (sejajar dengan main.py)
-DB_PATH = Path(__file__).resolve().parent.parent / "config.db"
+# Lokasi database SQLite:
+# - Saat dijalankan dari executable PyInstaller (dist), letakkan sejajar dengan file executable
+# - Saat dijalankan dari script Python biasa, letakkan di root folder proyek (sejajar dengan main.py)
+if getattr(sys, "frozen", False):
+    DB_PATH = Path(sys.executable).resolve().parent / "config.db"
+else:
+    DB_PATH = Path(__file__).resolve().parent.parent / "config.db"
 
 # Nilai default awal sesuai config.py
 DEFAULT_CONFIGS = {

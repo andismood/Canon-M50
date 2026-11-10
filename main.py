@@ -7,10 +7,11 @@ from typing import List, Optional
 import flet as ft
 
 from app.ktm_api import KtmApi
-from app.camera_preview import CameraPreviewManager
+from app.camera_preview import CameraPreviewManager, PreviewState
+from app.camera_connection import CameraConnectionManager
 from app import config
 from app.config import CAMERA_INDEX, CROP_SIZE, POSES
-from app.shutter import capture_to_memory, detect_camera
+from app.shutter import detect_camera
 from app.storage import (
     get_crop_file_path,
     get_student_dir,
@@ -33,6 +34,7 @@ def main(page: ft.Page):
         pass
     ktm_api = KtmApi()
     preview_manager = CameraPreviewManager(camera_index=CAMERA_INDEX)
+    camera_connection = CameraConnectionManager(preview_manager)
     captured_paths: List[Optional[str]] = [None] * len(POSES)
     preview_task_handle: Optional[asyncio.Task] = None
     pending_pose: Optional[int] = None  # pose yang fotonya sedang menunggu crop di tab hasil shutter
@@ -98,11 +100,8 @@ def main(page: ft.Page):
         try:
             ui.notify(f"Mengambil foto pose {index + 1}: {pose_title}...", "#64748B")
 
-            # Ambil foto asli lewat gphoto2 langsung ke memori (non-blocking, tanpa file sementara)
-            jpeg_bytes, msg = await asyncio.to_thread(capture_to_memory, 90)
-
-            # Pulihkan stream capture card OpenCV setelah shutter kamera
-            preview_manager.request_reopen()
+            # Pause preview HDMI -> shutter gphoto2 (USB) -> preview dipulihkan otomatis
+            jpeg_bytes, msg = await asyncio.to_thread(camera_connection.capture, 90)
 
             if jpeg_bytes is None:
                 ui.notify(f"Gagal mengambil foto: {msg}", "#B91C1C")
@@ -207,6 +206,8 @@ def main(page: ft.Page):
             ui.mahasiswa_simpan_button.disabled = False
             ui.mahasiswa_simpan_button.content = "Simpan"
             ui.notify(f"Data mahasiswa NIM {safe_nim} berhasil disimpan ke server.", "#16803C")
+            ui.nim_field.value = ""
+            ui.cancel_save()
         except Exception as exc:
             ui.mahasiswa_simpan_button.disabled = False
             ui.mahasiswa_simpan_button.content = "Simpan"
@@ -235,9 +236,10 @@ def main(page: ft.Page):
             semester_val = data.get("semester")
             ui.semester_field.value = str(semester_val) if semester_val is not None else ""
             ui.status_field.value = str(data.get("status_mahasiswa") or "")
-            
+            ui.semester_akademik_field.value = str(data.get("id_semester_registrasi") or "")
             ui.mahasiswa_simpan_button.visible = True
             ui.mahasiswa_cancle_button.visible = True
+            ui.student_detail_column.visible = True
             ui.mahasiswa_cari_button.disabled = False
             ui.mahasiswa_cari_button.content = "Cari"
             ui.notify(f"Data ditemukan: {ui.nama_field.value} ({ui.nim_field.value})", "#16803C")

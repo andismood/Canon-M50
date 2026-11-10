@@ -73,6 +73,7 @@ class AppUI:
         self.nama_institusi_field = ft.TextField(label="Nama Institusi", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
         self.semester_field = ft.TextField(label="Semester", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
         self.status_field = ft.TextField(label="Status Akademik", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
+        self.semester_akademik_field = ft.TextField(label="Semester Akademik", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
 
         self.student_detail_column = ft.Column(
             controls=[
@@ -82,6 +83,7 @@ class AppUI:
                 self.nama_prodi_field,
                 self.semester_field,
                 self.status_field,
+                self.semester_akademik_field,
             ],
             spacing=10,
             visible=True,
@@ -95,7 +97,7 @@ class AppUI:
         self.preview_image = ft.Image(
             src=b"",
             fit=ft.BoxFit.CONTAIN,
-            width=760,
+            width=660,
             height=390,
             gapless_playback=True,
             border_radius=8,
@@ -111,7 +113,7 @@ class AppUI:
             spacing=6,
         )
         self.preview_box = ft.Container(
-            width=760,
+            width=660,
             height=390,
             bgcolor="#E8EEF7",
             border_radius=9,
@@ -283,6 +285,7 @@ class AppUI:
             "nama_prodi": (self.nama_prodi_field.value or "").strip(),
             "nama_fakultas": (self.nama_fakultas_field.value or "").strip(),
             "nama_institusi": (self.nama_institusi_field.value or "").strip(),
+            "semester_akademik": (self.semester_akademik_field.value or "").strip(),
             "tempat_lahir": self._extra_student_data.get("tempat_lahir", ""),
             "tanggal_Lahir": self._extra_student_data.get("tanggal_Lahir", ""),
             # "status_mahasiswa": self._extra_student_data.get("status_mahasiswa", ""),
@@ -393,13 +396,14 @@ class AppUI:
                 print(f"[UI] Error loading thumbnail: {exc}")
 
     def cancel_save(self) -> None:
-        self.nim_field.value = ""
+      #  self.nim_field.value = ""
         self.nama_institusi_field.value = ""
         self.nama_field.value = ""
         self.nama_prodi_field.value = ""
         self.nama_fakultas_field.value = ""
         self.semester_field.value = ""
         self.status_field.value = ""
+        self.semester_akademik_field.value = ""
         self._extra_student_data = {}
         self.student_detail_column.visible = False
         self.mahasiswa_simpan_button.visible = False

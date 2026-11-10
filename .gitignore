@@ -24,6 +24,13 @@ venv.bak/
 foto_mahasiswa/
 temp_captures/
 runtime_preview/
+Aplication Prod/
+AplikasiFoto.spec
+FaceDetection.spec
+assets/
+build/
+dist/
+requirements.txt
 
 # ==========================================
 # Folder Backup & File Uji Coba Lokal
