@@ -57,14 +57,14 @@ class AppUI:
             )
         
         self.nama_field = ft.TextField(label="Nama Lengkap Mahasiswa", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
-        # self.alamat_field = ft.TextField(
-        #     label="Alamat",
-        #     multiline=True,
-        #     min_lines=2,
-        #     max_lines=3,
-        #     dense=True,
-        #     border_radius=8,
-        # )
+        self.alamat_field = ft.TextField(
+            label="Alamat",
+            multiline=True,
+            min_lines=2,
+            max_lines=3,
+            dense=True,
+            border_radius=8,
+        )
         # self.kode_prodi_field = ft.TextField(label="Kode Prodi", dense=True, border_radius=8)
         self.nama_prodi_field = ft.TextField(label="Nama Prodi", dense=True, border=ft.OutlineInputBorder(border_radius=10,),read_only=True)
         # self.kode_fakultas_field = ft.TextField(label="Kode Fakultas", dense=True, border_radius=8)
@@ -78,6 +78,7 @@ class AppUI:
         self.student_detail_column = ft.Column(
             controls=[
                 self.nama_field,
+                self.alamat_field,
                 self.nama_institusi_field,
                 self.nama_fakultas_field,
                 self.nama_prodi_field,
@@ -284,11 +285,11 @@ class AppUI:
             "semester": (self.semester_field.value or "").strip(),
             "nama_prodi": (self.nama_prodi_field.value or "").strip(),
             "nama_fakultas": (self.nama_fakultas_field.value or "").strip(),
-            "nama_institusi": (self.nama_institusi_field.value or "").strip(),
-            "semester_akademik": (self.semester_akademik_field.value or "").strip(),
-            "tempat_lahir": self._extra_student_data.get("tempat_lahir", ""),
-            "tanggal_Lahir": self._extra_student_data.get("tanggal_Lahir", ""),
-            # "status_mahasiswa": self._extra_student_data.get("status_mahasiswa", ""),
+            "institut": (self.nama_institusi_field.value or "").strip(),
+            "id_semester_registrasi": (self.semester_akademik_field.value or "").strip(),
+            "tempat_lahir_mahasiswa": self._extra_student_data.get("tempat_lahir", ""),
+            "tanggal_Lahir_mahasiswa": self._extra_student_data.get("tanggal_Lahir", ""),
+            "status_mahasiswa": self._extra_student_data.get("status_mahasiswa", ""),
         }
 
     # async def cari_mahasiswa(self, _=None) -> None:
@@ -399,6 +400,7 @@ class AppUI:
       #  self.nim_field.value = ""
         self.nama_institusi_field.value = ""
         self.nama_field.value = ""
+        self.alamat_field.value = ""
         self.nama_prodi_field.value = ""
         self.nama_fakultas_field.value = ""
         self.semester_field.value = ""

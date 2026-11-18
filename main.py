@@ -230,6 +230,7 @@ def main(page: ft.Page):
 
             ui.nim_field.value = str(data.get("nim") or nim_val)
             ui.nama_field.value = str(data.get("nama_mahasiswa") or "")
+            ui.alamat_field.calue = str(data.get("alamat") or "")
             ui.nama_prodi_field.value = str(data.get("nama_prodi") or "")
             ui.nama_fakultas_field.value = str(data.get("fakultas") or "")
             ui.nama_institusi_field.value = str(data.get("institusi") or "")
