@@ -281,7 +281,7 @@ class AppUI:
     def get_form_values(self) -> Dict[str, str]:
         return {
             "nim": self.get_nim(),
-            "nama": (self.nama_field.value or "").strip(),
+            "nama_mahasiswa": (self.nama_field.value or "").strip(),
             "semester": (self.semester_field.value or "").strip(),
             "nama_prodi": (self.nama_prodi_field.value or "").strip(),
             "nama_fakultas": (self.nama_fakultas_field.value or "").strip(),
